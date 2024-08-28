@@ -1,1 +1,1 @@
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/kastnerp/GlaserMethod/main?labpath=GlaserMethod.ipynb)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/kastnerp/GlaserMethod/HEAD)
