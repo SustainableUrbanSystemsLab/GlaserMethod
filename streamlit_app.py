@@ -270,23 +270,48 @@ base_temp = (
     .encode(
         x=alt.X("Position x (m):Q", title="Depth (m)"),
         y=alt.Y("Temperature (°C):Q", title="Temperature (°C)"),
-        color=alt.Color("Series:N", title="Legend")   # <-- legend
+        color=alt.Color(
+    "Series:N",
+    title="Legend",
+    scale=alt.Scale(
+        domain=["Temperature (°C)"],
+        range=["#d62728"]  # red
+    ),
+    legend=alt.Legend(
+        orient="top-right",
+        fillColor="white",
+        strokeColor="#e0e0e0",
+        cornerRadius=6,
+        padding=6,
+        labelFontSize=12,
+        titleFontSize=12
     )
-    .properties(height=320)
 )
+
+    )
+)
+
 
 if show_layers and len(bands_df):
     rules = alt.Chart(edges_df).mark_rule(
         strokeDash=[4, 3], opacity=0.8, strokeWidth=1.5
     ).encode(x="x:Q")
-    labels = alt.Chart(bands_df).mark_text(dy=-6, opacity=0.95).encode(
+    labels = alt.Chart(bands_df).mark_text(dy=-30, opacity=0.95).encode(
         x="xc:Q", y=alt.value(14), text="Layer:N"
     )
     temp_chart = base_temp + rules + labels
 else:
     temp_chart = base_temp
 
-st.altair_chart(temp_chart, use_container_width=True)
+
+st.altair_chart(
+    temp_chart.properties(
+                        #width=900, 
+                          height=300
+                          ),
+   #use_container_width=False
+)
+
 
 # ==========================
 # Vapour pressures (BOTTOM)
@@ -307,17 +332,91 @@ base_press = (
     .encode(
         x=alt.X("Position x (m):Q", title="Depth (m)"),
         y=alt.Y("Pa:Q", title="Pressure (Pa)"),
-        color=alt.Color("Series:N", title="Legend")
+                color=alt.Color(
+            "Series:N",
+            legend=alt.Legend(
+                title="Legend",
+                orient="top-right",     # try "top-right" if you prefer
+                fillColor="white",     # <-- white background
+                strokeColor="#e0e0e0", # thin border
+                cornerRadius=6,
+                padding=6,
+                labelFontSize=12,
+                titleFontSize=12
+            )
+        )
     )
-    .properties(height=320)
 )
 
 if show_layers and len(bands_df):
     rules2 = alt.Chart(edges_df).mark_rule(
         strokeDash=[4, 3], opacity=0.8, strokeWidth=1.5
     ).encode(x="x:Q")
-    press_chart = base_press + rules2
+    press_chart = base_press + rules2 + labels
 else:
     press_chart = base_press
 
-st.altair_chart(press_chart, use_container_width=True)
+# set size on the *final* chart AND don't ask Streamlit to stretch it
+st.altair_chart(
+    press_chart.properties(#width=863, 
+                           height=300
+                           ),
+    #use_container_width=False
+)
+
+# =========================
+# Results & tables (BOTTOM)
+# =========================
+st.markdown("### Results at interfaces")
+st.dataframe(
+    nodes.style.format({
+        "Cum. R (m²K/W)": "{:.3f}",
+        "Temperature (°C)": "{:.2f}",
+        "p_sat (Pa)": "{:.0f}",
+        "p_v (Pa)": "{:.0f}",
+    })
+)
+
+st.markdown("### Layer summary")
+col1, col2, col3, col4 = st.columns(4)
+with col1:
+    st.metric("Total thickness (m)", f"{layers_tbl['Thickness (m)'].sum():.3f}")
+with col2:
+    st.metric("Total R incl. surfaces (m²K/W)", f"{layers_tbl['R (m²K/W)'].sum() + R_si + R_se:.3f}")
+with col3:
+    st.metric("Any condensation?", "Yes" if nodes["Condensation?"].any() else "No")
+with col4:
+    st.metric("Indoor dewpoint (°C)", f"{dewpoint_c(T_int, RH_int):.2f}")
+
+st.dataframe(
+    layers_tbl.style.format({
+        "Thickness (m)": "{:.4f}",
+        "Lambda (W/mK)": "{:.3f}",
+        "mu (–)": "{:.0f}",
+        "R (m²K/W)": "{:.3f}",
+        "sd (m)": "{:.3f}",
+    })
+)
+
+# Downloads
+csv_nodes = nodes.to_csv(index=False).encode("utf-8")
+csv_layers = layers_tbl.to_csv(index=False).encode("utf-8")
+colA, colB = st.columns(2)
+with colA:
+    st.download_button("Download interface results (CSV)", data=csv_nodes,
+                       file_name="glaser_interfaces.csv", mime="text/csv")
+with colB:
+    st.download_button("Download layer summary (CSV)", data=csv_layers,
+                       file_name="glaser_layers.csv", mime="text/csv")
+
+# Notes
+st.info(
+    """
+    **Notes**
+    - Method follows the classic steady-state *Glaser* approach: linear temperature and vapour pressure
+      profiles based on thermal and vapour resistances.
+    - Surface vapour resistances (sd) are optional and default to 0 m.
+    - For rigorous design on moisture safety, prefer transient hygrothermal simulation tools
+      (e.g., EN 15026 / WUFI) in addition to Glaser.
+    """
+)
