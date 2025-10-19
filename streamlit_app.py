@@ -271,10 +271,10 @@ if len(layers) == 0:
     st.info("Add at least one layer with positive thickness and thermal conductivity.")
     st.stop()
 
-# Run Glaser (unchanged)
+# Run Glaser 
 nodes, layers_tbl = glaser(layers, T_int, RH_int, T_ext, RH_ext, R_si, R_se, sd_si, sd_se)
 
-# Build layer bounds for overlays (unchanged)
+# Build layer bounds for overlays
 bounds = []
 x0 = 0.0
 for L in layers:
@@ -379,7 +379,7 @@ if show_layers and len(bands_df):
     rules2 = alt.Chart(edges_df).mark_rule(
         strokeDash=[6, 3], opacity=0.8, strokeWidth=1.5, color=label_color,  
     ).encode(x="x:Q")
-    press_chart = base_press + rules2 + labels  # reuses the same labels if you want them here too
+    press_chart = base_press + rules2 + labels  
 else:
     press_chart = base_press
 
@@ -391,3 +391,59 @@ st.altair_chart(
 )
 
 
+# =========================
+# Results & tables (BOTTOM)
+# =========================
+st.markdown("### Results at interfaces")
+st.dataframe(
+    nodes.style.format({
+        "Cum. R (m²K/W)": "{:.3f}",
+        "Temperature (°C)": "{:.2f}",
+        "p_sat (Pa)": "{:.0f}",
+        "p_v (Pa)": "{:.0f}",
+    })
+)
+
+st.markdown("### Layer summary")
+col1, col2, col3, col4 = st.columns(4)
+with col1:
+    st.metric("Total thickness (m)", f"{layers_tbl['Thickness (m)'].sum():.3f}")
+with col2:
+    st.metric("Total R incl. surfaces (m²K/W)", f"{layers_tbl['R (m²K/W)'].sum() + R_si + R_se:.3f}")
+with col3:
+    st.metric("Any condensation?", "Yes" if nodes["Condensation?"].any() else "No")
+with col4:
+    st.metric("Indoor dewpoint (°C)", f"{dewpoint_c(T_int, RH_int):.2f}")
+
+st.dataframe(
+    layers_tbl.style.format({
+        "Thickness (m)": "{:.4f}",
+        "Lambda (W/mK)": "{:.3f}",
+        "mu (–)": "{:.0f}",
+        "R (m²K/W)": "{:.3f}",
+        "sd (m)": "{:.3f}",
+    })
+)
+
+# Downloads
+csv_nodes = nodes.to_csv(index=False).encode("utf-8")
+csv_layers = layers_tbl.to_csv(index=False).encode("utf-8")
+colA, colB = st.columns(2)
+with colA:
+    st.download_button("Download interface results (CSV)", data=csv_nodes,
+                       file_name="glaser_interfaces.csv", mime="text/csv")
+with colB:
+    st.download_button("Download layer summary (CSV)", data=csv_layers,
+                       file_name="glaser_layers.csv", mime="text/csv")
+
+# Notes
+st.info(
+    """
+    **Notes**
+    - Method follows the classic steady-state *Glaser* approach: linear temperature and vapour pressure
+      profiles based on thermal and vapour resistances.
+    - Surface vapour resistances (sd) are optional and default to 0 m.
+    - For rigorous design on moisture safety, prefer transient hygrothermal simulation tools
+      (e.g., EN 15026 / WUFI) in addition to Glaser.
+    """
+)
