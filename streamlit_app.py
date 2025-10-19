@@ -190,7 +190,7 @@ def glaser(
 # UI
 # -------------------------------
 
-st.set_page_config(page_title="Glaser Method – Condensation Check", layout="wide")
+st.set_page_config(page_title="Glaser Method – Condensation Check")
 
 st.title("Glaser Method – Interstitial Condensation")
 
