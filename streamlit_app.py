@@ -28,6 +28,11 @@ def legend_theme_kwargs():
     border = "#404040" if is_dark else "#E0E0E0"
     return dict(fillColor=bg, strokeColor=border, labelColor=text, titleColor=text)
 
+def layer_label_color() -> str:
+    base = (_APP_THEME.get("base") or (st.get_option("theme.base") or "light")).lower()
+    is_dark = (base == "dark")
+    # white on dark theme, near-black on light theme
+    return "#FFFFFF" if is_dark else (st.get_option("theme.textColor") or "#31333F")
 
 
 def dewpoint_c(T_c: float, RH_pct: float) -> float:
@@ -310,26 +315,34 @@ base_temp = (
     )
 )
 
+# THEME-DEPENDENT LAYER LABEL COLOR (white on dark, dark on light)
+label_color = layer_label_color()  
 
 if show_layers and len(bands_df):
     rules = alt.Chart(edges_df).mark_rule(
-        strokeDash=[4, 3], opacity=0.8, strokeWidth=1.5
+        strokeDash=[6, 3], opacity=0.8, strokeWidth=1.5, color=label_color,   
     ).encode(x="x:Q")
-    labels = alt.Chart(bands_df).mark_text(dy=-30, opacity=0.95).encode(
+
+    labels = alt.Chart(bands_df).mark_text(
+        dy=-30,
+        opacity=0.95,
+        color=label_color,      
+        # optional readability outline:
+        # stroke="black", strokeWidth=2, strokeOpacity=0.25
+    ).encode(
         x="xc:Q", y=alt.value(14), text="Layer:N"
     )
+
     temp_chart = base_temp + rules + labels
 else:
     temp_chart = base_temp
 
-
 st.altair_chart(
     temp_chart.properties(
-                        #width=900, 
-                          height=300
-                          )
+        # width=900,
+        height=300
+    )
 )
-
 
 # ==========================
 # Vapour pressures (BOTTOM)
@@ -362,78 +375,19 @@ base_press = (
     )
 )
 
-
 if show_layers and len(bands_df):
     rules2 = alt.Chart(edges_df).mark_rule(
-        strokeDash=[4, 3], opacity=0.8, strokeWidth=1.5
+        strokeDash=[6, 3], opacity=0.8, strokeWidth=1.5, color=label_color,  
     ).encode(x="x:Q")
-    press_chart = base_press + rules2 + labels
+    press_chart = base_press + rules2 + labels  # reuses the same labels if you want them here too
 else:
     press_chart = base_press
 
-# set size on the *final* chart AND don't ask Streamlit to stretch it
 st.altair_chart(
-    press_chart.properties(#width=863, 
-                           height=300
-                           )
+    press_chart.properties(
+        # width=863,
+        height=300
+    )
 )
-
-# =========================
-# Results & tables (BOTTOM)
-# =========================
-st.markdown("### Results at interfaces")
-st.dataframe(
-    nodes.style.format({
-        "Cum. R (m²K/W)": "{:.3f}",
-        "Temperature (°C)": "{:.2f}",
-        "p_sat (Pa)": "{:.0f}",
-        "p_v (Pa)": "{:.0f}",
-    })
-)
-
-st.markdown("### Layer summary")
-col1, col2, col3, col4 = st.columns(4)
-with col1:
-    st.metric("Total thickness (m)", f"{layers_tbl['Thickness (m)'].sum():.3f}")
-with col2:
-    st.metric("Total R incl. surfaces (m²K/W)", f"{layers_tbl['R (m²K/W)'].sum() + R_si + R_se:.3f}")
-with col3:
-    st.metric("Any condensation?", "Yes" if nodes["Condensation?"].any() else "No")
-with col4:
-    st.metric("Indoor dewpoint (°C)", f"{dewpoint_c(T_int, RH_int):.2f}")
-
-st.dataframe(
-    layers_tbl.style.format({
-        "Thickness (m)": "{:.4f}",
-        "Lambda (W/mK)": "{:.3f}",
-        "mu (–)": "{:.0f}",
-        "R (m²K/W)": "{:.3f}",
-        "sd (m)": "{:.3f}",
-    })
-)
-
-# Downloads
-csv_nodes = nodes.to_csv(index=False).encode("utf-8")
-csv_layers = layers_tbl.to_csv(index=False).encode("utf-8")
-colA, colB = st.columns(2)
-with colA:
-    st.download_button("Download interface results (CSV)", data=csv_nodes,
-                       file_name="glaser_interfaces.csv", mime="text/csv")
-with colB:
-    st.download_button("Download layer summary (CSV)", data=csv_layers,
-                       file_name="glaser_layers.csv", mime="text/csv")
-
-# Notes
-st.info(
-    """
-    **Notes**
-    - Method follows the classic steady-state *Glaser* approach: linear temperature and vapour pressure
-      profiles based on thermal and vapour resistances.
-    - Surface vapour resistances (sd) are optional and default to 0 m.
-    - For rigorous design on moisture safety, prefer transient hygrothermal simulation tools
-      (e.g., EN 15026 / WUFI) in addition to Glaser.
-    """
-)
-
 
 
