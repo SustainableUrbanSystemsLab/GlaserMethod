@@ -8,5 +8,6 @@ dependencies = [
     "altair>=5.5.0",
     "numpy>=2.3.4",
     "pandas>=2.3.3",
+    "st-theme>=1.2.3",
     "streamlit>=1.50.0",
 ]
