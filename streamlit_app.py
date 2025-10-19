@@ -6,10 +6,29 @@ import numpy as np
 import pandas as pd
 import altair as alt
 import streamlit as st
+from streamlit_theme import st_theme
 
 # -------------------------------
 # Utilities
 # -------------------------------
+
+# Create exactly ONE component instance with a unique key:
+_APP_THEME = st_theme(key="app_theme_component") or {}
+
+def legend_theme_kwargs():
+    """
+    Legend colors that follow the active Streamlit theme.
+    Falls back to Streamlit's config if the component returns None initially.
+    """
+    base = (_APP_THEME.get("base") or (st.get_option("theme.base") or "light")).lower()
+    is_dark = (base == "dark")
+
+    bg   = _APP_THEME.get("secondaryBackgroundColor") or st.get_option("theme.secondaryBackgroundColor") or ("#0E1117" if is_dark else "#FFFFFF")
+    text = _APP_THEME.get("textColor")                 or st.get_option("theme.textColor")                 or ("#FAFAFA" if is_dark else "#31333F")
+    border = "#404040" if is_dark else "#E0E0E0"
+    return dict(fillColor=bg, strokeColor=border, labelColor=text, titleColor=text)
+
+
 
 def dewpoint_c(T_c: float, RH_pct: float) -> float:
     """Dewpoint based on Magnus/Tetens (approx.)."""
@@ -17,6 +36,7 @@ def dewpoint_c(T_c: float, RH_pct: float) -> float:
     a, b = 17.27, 237.3
     alpha = ((a * T_c) / (b + T_c)) + math.log(RH)
     return (b * alpha) / (a - alpha)
+
 
 # -------------------------------
 # Utilities
@@ -56,6 +76,8 @@ def sat_vapor_pressure_pa(T_c: float) -> float:
 
 def pv_from_rh(T_c: float, rh_pct: float) -> float:
     return sat_vapor_pressure_pa(T_c) * max(0.0, min(rh_pct, 100.0)) / 100.0
+
+
 
 
 @dataclass
@@ -157,6 +179,8 @@ def glaser(
     return nodes, layers_tbl
 
 
+
+
 # -------------------------------
 # UI
 # -------------------------------
@@ -216,7 +240,7 @@ if "layers_df" not in st.session_state:
 edited_df = st.data_editor(
     st.session_state["layers_df"],
     num_rows="dynamic",
-    use_container_width=True,
+    width='stretch',
     column_config={
         "Name": st.column_config.TextColumn(required=True),
         "Thickness (m)": st.column_config.NumberColumn(min_value=0.0, step=0.001, format="%.4f"),
@@ -264,6 +288,14 @@ st.markdown("### Temperature profile")
 # Add a constant series label so the chart shows a legend
 temp_plot_df = nodes.assign(Series="Temperature (°C)")
 
+temp_legend = alt.Legend(
+    title="Legend",
+    orient="top-right",
+    cornerRadius=6,
+    padding=6,
+    **legend_theme_kwargs()
+)
+
 base_temp = (
     alt.Chart(temp_plot_df)
     .mark_line(point=True)
@@ -271,23 +303,10 @@ base_temp = (
         x=alt.X("Position x (m):Q", title="Depth (m)"),
         y=alt.Y("Temperature (°C):Q", title="Temperature (°C)"),
         color=alt.Color(
-    "Series:N",
-    title="Legend",
-    scale=alt.Scale(
-        domain=["Temperature (°C)"],
-        range=["#d62728"]  # red
-    ),
-    legend=alt.Legend(
-        orient="top-right",
-        fillColor="white",
-        strokeColor="#e0e0e0",
-        cornerRadius=6,
-        padding=6,
-        labelFontSize=12,
-        titleFontSize=12
-    )
-)
-
+            "Series:N",
+            scale=alt.Scale(domain=["Temperature (°C)"], range=["#d62728"]),
+            legend=temp_legend
+        )
     )
 )
 
@@ -308,8 +327,7 @@ st.altair_chart(
     temp_chart.properties(
                         #width=900, 
                           height=300
-                          ),
-   #use_container_width=False
+                          )
 )
 
 
@@ -326,27 +344,24 @@ plot_df = nodes.melt(
     value_name="Pa"
 )
 
+press_legend = alt.Legend(
+    title="Legend",
+    orient="top-right",
+    cornerRadius=6,
+    padding=6,
+    **legend_theme_kwargs()
+)
+
 base_press = (
     alt.Chart(plot_df)
     .mark_line(point=True)
     .encode(
         x=alt.X("Position x (m):Q", title="Depth (m)"),
         y=alt.Y("Pa:Q", title="Pressure (Pa)"),
-                color=alt.Color(
-            "Series:N",
-            legend=alt.Legend(
-                title="Legend",
-                orient="top-right",     # try "top-right" if you prefer
-                fillColor="white",     # <-- white background
-                strokeColor="#e0e0e0", # thin border
-                cornerRadius=6,
-                padding=6,
-                labelFontSize=12,
-                titleFontSize=12
-            )
-        )
+        color=alt.Color("Series:N", legend=press_legend)
     )
 )
+
 
 if show_layers and len(bands_df):
     rules2 = alt.Chart(edges_df).mark_rule(
@@ -360,8 +375,7 @@ else:
 st.altair_chart(
     press_chart.properties(#width=863, 
                            height=300
-                           ),
-    #use_container_width=False
+                           )
 )
 
 # =========================
@@ -420,3 +434,6 @@ st.info(
       (e.g., EN 15026 / WUFI) in addition to Glaser.
     """
 )
+
+
+
